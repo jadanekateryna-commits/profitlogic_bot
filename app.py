@@ -4,8 +4,8 @@ import threading
 from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# ====== ТОКЕН И ID ======
-TOKEN = "8931679192:AAGTp6miE_7Q9ZI6b49g5qOJqT6XaBK3cr0"
+# ====== НОВЫЙ ТОКЕН ======
+TOKEN = "8931679192:AAHIGeCM62cInZtrqOMJed0iy36qGKS3EA8"
 ADMIN_ID = 7687338241
 
 bot = telebot.TeleBot(TOKEN)
