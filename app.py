@@ -1,22 +1,34 @@
+import os
 import telebot
+import threading
+from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# НОВЫЙ токен
+# ====== ТОКЕН И ID ======
 TOKEN = "8931679192:AAGTp6miE_7Q9ZI6b49g5qOJqT6XaBK3cr0"
-bot = telebot.TeleBot(TOKEN)
+ADMIN_ID = 7687338241
 
-# Словарь для хранения данных пользователей
+bot = telebot.TeleBot(TOKEN)
 user_data = {}
 
-# Команда /start
+# ====== ВЕБ-СЕРВЕР (Flask) для Render ======
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Бот работает! ✅"
+
+@app.route('/health')
+def health():
+    return "OK"
+
+# ====== ЛОГИКА БОТА ======
 @bot.message_handler(commands=['start'])
 def start(message):
     chat_id = message.chat.id
     user_data[chat_id] = {}
-    
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("Начать опрос", callback_data="start_quiz"))
-    
     bot.send_message(
         chat_id,
         "🐱 Привет! Я Екатерина — экономист «Прибыльной логики».\n\n"
@@ -26,14 +38,12 @@ def start(message):
         reply_markup=markup
     )
 
-# Обработчик нажатия на кнопку "Начать опрос"
 @bot.callback_query_handler(func=lambda call: call.data == "start_quiz")
 def start_quiz(call):
     chat_id = call.message.chat.id
     bot.delete_message(chat_id, call.message.message_id)
     ask_name(chat_id)
 
-# Вопрос 1: Имя
 def ask_name(chat_id):
     msg = bot.send_message(chat_id, "Вопрос №1: Как к вам обращаться? Напишите ваше имя.")
     bot.register_next_step_handler(msg, save_name)
@@ -43,7 +53,6 @@ def save_name(message):
     user_data[chat_id]['name'] = message.text
     ask_contact(chat_id)
 
-# Вопрос 2: Контакт
 def ask_contact(chat_id):
     msg = bot.send_message(chat_id, "Вопрос №2: Как с вами связаться? Напишите номер телефона или Telegram-ник.")
     bot.register_next_step_handler(msg, save_contact)
@@ -53,7 +62,6 @@ def save_contact(message):
     user_data[chat_id]['contact'] = message.text
     ask_business(chat_id)
 
-# Вопрос 3: О бизнесе
 def ask_business(chat_id):
     msg = bot.send_message(
         chat_id,
@@ -69,10 +77,8 @@ def save_business(message):
     user_data[chat_id]['business'] = message.text
     send_final_message(chat_id)
 
-# Финальное сообщение с чек-листом (отправляет картинку)
 def send_final_message(chat_id):
     checklist_image_url = "https://i.ibb.co/xShy84b4/10.png"
-    
     bot.send_photo(
         chat_id,
         checklist_image_url,
@@ -84,29 +90,14 @@ def send_final_message(chat_id):
                 "https://t.me/ProfitLogicmew\n\n"
                 "До связи! 🐱"
     )
-    
-    # Отправка уведомления вам в личку
     bot.send_message(
-        7687338241,
+        ADMIN_ID,
         f"Новая заявка!\n"
         f"Имя: {user_data[chat_id].get('name', 'Не указано')}\n"
         f"Контакт: {user_data[chat_id].get('contact', 'Не указан')}\n"
         f"О бизнесе: {user_data[chat_id].get('business', 'Не указано')}"
     )
 
-# Команда /checklist (тоже отправляет картинку)
-@bot.message_handler(commands=['checklist'])
-def checklist(message):
-    checklist_image_url = "https://i.ibb.co/xShy84b4/10.png"
-    bot.send_photo(
-        message.chat.id,
-        checklist_image_url,
-        caption="🎁 Держите мой чек-лист «10 точек утечки прибыли».\n\n"
-                "Сохраните его — он поможет быстро проверить, где бизнес теряет деньги.\n\n"
-                "Если хотите разобрать ваш случай — пишите в личку: @Katrin_ova"
-    )
-
-# Команда /info
 @bot.message_handler(commands=['info'])
 def info(message):
     bot.send_message(
@@ -118,7 +109,6 @@ def info(message):
         "Или переходите в мой канал: https://t.me/ProfitLogicmew"
     )
 
-# Команда /about
 @bot.message_handler(commands=['about'])
 def about(message):
     bot.send_message(
@@ -129,7 +119,17 @@ def about(message):
         "📊 Мой канал: https://t.me/ProfitLogicmew"
     )
 
-# Команда /contact
+@bot.message_handler(commands=['checklist'])
+def checklist(message):
+    checklist_image_url = "https://i.ibb.co/xShy84b4/10.png"
+    bot.send_photo(
+        message.chat.id,
+        checklist_image_url,
+        caption="🎁 Держите мой чек-лист «10 точек утечки прибыли».\n\n"
+                "Сохраните его — он поможет быстро проверить, где бизнес теряет деньги.\n\n"
+                "Если хотите разобрать ваш случай — пишите в личку: @Katrin_ova"
+    )
+
 @bot.message_handler(commands=['contact'])
 def contact(message):
     bot.send_message(
@@ -143,7 +143,16 @@ def contact(message):
         "Пишите — разберу ваш случай бесплатно. 💬"
     )
 
-# Запуск бота
-if __name__ == "__main__":
-    print("Бот запущен и работает!")
+# ====== ЗАПУСК БОТА И ВЕБ-СЕРВЕРА ======
+def run_bot():
     bot.infinity_polling()
+
+if __name__ == "__main__":
+    # Запускаем бота в отдельном потоке
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.daemon = True
+    bot_thread.start()
+
+    # Запускаем Flask (для Render)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
